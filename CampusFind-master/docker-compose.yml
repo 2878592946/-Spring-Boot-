@@ -1,0 +1,48 @@
+# 一键拉起 MySQL + MinIO，供基于 SpringBoot 的失物招领项目本地/答辩演示使用。
+# 使用：在项目根目录（本文件所在目录）执行  docker compose up -d
+# 说明：端口均映射到宿主机，Spring Boot 以 localhost 方式连接，无需改动 application.yml。
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: lostfound-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: 123456          # 与 application.yml 的数据库密码保持一致
+      TZ: Asia/Shanghai
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql-data:/var/lib/mysql
+      # 首次启动自动执行初始化脚本（建库建表 + 案例数据）
+      - ./database/init_database.sql:/docker-entrypoint-initdb.d/init_database.sql:ro
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-p123456"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  minio:
+    image: minio/minio:latest
+    container_name: lostfound-minio
+    restart: unless-stopped
+    environment:
+      MINIO_ROOT_USER: minioadmin              # 与 application.yml 的 access-key 一致
+      MINIO_ROOT_PASSWORD: minioadmin          # 与 application.yml 的 secret-key 一致
+    command: server /data --console-address ":9010"
+    ports:
+      - "9000:9000"   # S3 API（图片上传/直链访问）
+      - "9010:9010"   # Web 管理控制台
+    volumes:
+      - minio-data:/data
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  mysql-data:
+  minio-data:
